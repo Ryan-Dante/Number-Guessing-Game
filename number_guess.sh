@@ -1,39 +1,35 @@
 #!/bin/bash
 
-PSQL="psql --username=freecodecamp --dbname=number_guess -t --no-align -c"
+PSQL="psql --username=freecodecamp --dbname=number_guess --tuples-only --no-align -c"
 
 echo -e "\n~~~ NUMBER GUESSING GAME ~~~ \n"
 
-# Generate random number
-SECRET_NUMBER=$((RANDOM % 1000 + 1))
-NUMBER_OF_GUESSES=0
-
 # Ask for username
 echo -e "\nEnter your username:"
-read NAME_INPUT
+read USERNAME
 
-# Check if username exists
-USERNAME=$($PSQL "SELECT username FROM users WHERE username = '$NAME_INPUT'")
+# Check if username info exists
+USERNAME_CHECK=$($PSQL "SELECT username FROM users WHERE username = '$USERNAME'")
+GAMES_PLAYED=$($PSQL "SELECT COUNT(*) FROM users INNER JOIN games USING(user_id) WHERE username = '$USERNAME'")
+BEST_GAME=$($PSQL "SELECT MIN(guesses) FROM users INNER JOIN games USING(user_id) WHERE username = '$USERNAME'")
 
 # If username doesn't exist
-if [[ -z $USERNAME ]]
+if [[ -z $USERNAME_CHECK ]]
 then
-  # Insert new username
-  NEW_USER=$($PSQL "INSERT INTO users(username) VALUES('$NAME_INPUT')")
-
-  echo -e "\nWelcome, $NAME_INPUT! It looks like this is your first time here."
+  INSERT_USER=$($PSQL "INSERT INTO users(username) VALUES('$USERNAME')")
+  echo -e "\nWelcome, $USERNAME! It looks like this is your first time here."
 else
   # Get user info
-  USER_ID=$($PSQL "SELECT user_id FROM users WHERE username = '$NAME_INPUT'")
-  GAMES_PLAYED=$($PSQL "SELECT COUNT(game_id) FROM games WHERE user_id = $USER_ID")
-  BEST_GAME=$($PSQL "SELECT MIN(guesses) FROM games WHERE user_id = $USER_ID")
-
-  echo -e "\nWelcome back, $NAME_INPUT! You have played $GAMES_PLAYED games, and your best game took $BEST_GAME guesses."
+  
+  echo -e "\nWelcome back, $USERNAME! You have played $GAMES_PLAYED games, and your best game took $BEST_GAME guesses."
 fi
 
-NUMBER_GAME() {
+# Generate random number
+SECRET_NUMBER=$((1 + $RANDOM % 1000))
+NUMBER_OF_GUESSES=1
+
   # Re-read USER_ID inside the function
-  USER_ID=$($PSQL "SELECT user_id FROM users WHERE username = '$NAME_INPUT'")
+  USER_ID=$($PSQL "SELECT user_id FROM users WHERE username = '$USERNAME'")
 
   # Ask user to guess secret number
   echo -e "\nGuess the secret number between 1 and 1000:"
@@ -42,7 +38,7 @@ NUMBER_GAME() {
   while [[ $GUESS -ne $SECRET_NUMBER ]]
   do
     # Check for valid integer
-    if [[ $GUESS =~ ^[0-9]+$ ]] && [ "$GUESS" -ge 1 ] && [ "$GUESS" -le 1000 ]
+    if [[ $GUESS =~ ^[0-9]+$ ]]
     then
       ((NUMBER_OF_GUESSES++))
 
@@ -67,8 +63,3 @@ NUMBER_GAME() {
     INSERT_GUESSES_RESULT=$($PSQL "INSERT INTO games(guesses, user_id) VALUES($NUMBER_OF_GUESSES, $USER_ID)")
 
   echo -e "\nYou guessed it in $NUMBER_OF_GUESSES tries. The secret number was $SECRET_NUMBER. Nice job!"
-  exit
-}
-
-# Call the game function
-NUMBER_GAME
